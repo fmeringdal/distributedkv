@@ -1,0 +1,8 @@
+#!/bin/bash
+export VOLUMES=${1:-localhost:3001}
+export DB=${2:-/tmp/cachedb/}
+export TYPE=master
+
+#cargo run
+target/debug/blobstorage
+#uwsgi --disable-logging --http :${PORT:-3000} --wsgi-file server.py --callable master --master --processes 4
