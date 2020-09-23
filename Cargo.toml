@@ -8,4 +8,11 @@ edition = "2018"
 
 [dependencies]
 tempdir = "0.3.7"
+md5 = "0.7.0"
 leveldb = "0.8.6"
+actix-web = "3"
+base64 = "0.12.3"
+rocksdb = "0.15.0"
+serde_json = "1.0"
+serde = "1.0.116"
+curl = "0.4.33"

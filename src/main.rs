@@ -1,4 +1,12 @@
-extern crate leveldb;
+#![feature(proc_macro_hygiene, decl_macro)]
+
+extern crate actix_web;
+extern crate base64;
+extern crate curl;
+extern crate md5;
+extern crate rocksdb;
+extern crate serde;
+extern crate serde_json;
 extern crate tempdir;
 
 mod master;
@@ -14,6 +22,7 @@ fn main() {
         Ok(s) => s,
         _ => String::from("invalid"),
     };
+    println!("type: {}", server_type);
 
     if server_type == "master" {
         master();
