@@ -4,9 +4,17 @@ use leveldb::kv::KV;
 use leveldb::options::{Options, ReadOptions, WriteOptions};
 use tempdir::TempDir;
 
-pub fn master() {
-    println!("Hello from master");
+use std::env;
 
+pub fn master() {
+    let volume_servers = match env::var("VOLUMES") {
+        Ok(volumes) => volumes,
+        _ => String::from(""),
+    };
+
+    let volume_servers: Vec<&str> = volume_servers.split(",").collect();
+
+    println!("Master got volume servers: {:?}", volume_servers);
     //let tempdir = TempDir::new("demo").unwrap();
     //let path = tempdir.path();
 
