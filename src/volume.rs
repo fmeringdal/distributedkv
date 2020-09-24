@@ -122,7 +122,7 @@ async fn get_key(web::Path(key): web::Path<String>, fc: web::Data<FileCache>) ->
 async fn delete_key(web::Path(key): web::Path<String>, fc: web::Data<FileCache>) -> impl Responder {
     fc.delete(&key);
     report_to_master(&key, "delete");
-    HttpResponse::Ok().finish()
+    HttpResponse::NoContent().finish()
 }
 
 #[put("/{key}")]
