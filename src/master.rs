@@ -56,31 +56,42 @@ async fn put_key(web::Path(key): web::Path<String>, db: web::Data<DB>) -> impl R
     }
 }
 
-#[post("/{volume}/{key}")]
+#[post("/{volume}/{key}/{op}")]
 async fn post_key(
-    web::Path((volume, key)): web::Path<(String, String)>,
+    web::Path((volume, key, op)): web::Path<(String, String, String)>,
     db: web::Data<DB>,
 ) -> impl Responder {
-    println!("Master got a report from volume: {}", volume);
-    match db.get(key.as_bytes()) {
-        Ok(None) => {
-            let meta = Meta {
-                volume: format!("http://{}", volume),
-            };
-            match db.put(key.as_bytes(), serde_json::to_string(&meta).unwrap()) {
-                Ok(_) => println!("master hass registered key"),
-                Err(_) => println!("coudl not put key in master"),
-            }
-            HttpResponse::Ok().finish()
+    let stored = db.get(key.as_bytes());
+    if Ok(None) != stored && op == "create" {
+        return HttpResponse::Conflict().finish();
+    }
+
+    if op == "delete" && (!stored.is_ok() || !stored.unwrap().is_some()) {
+        return HttpResponse::NotFound().finish();
+    }
+
+    if op == "create" {
+        let meta = Meta {
+            volume: format!("http://{}", volume),
+        };
+        match db.put(key.as_bytes(), serde_json::to_string(&meta).unwrap()) {
+            Ok(_) => HttpResponse::Created().finish(),
+            Err(_) => HttpResponse::InternalServerError().finish(),
         }
-        _ => HttpResponse::Conflict().finish(),
+    } else if op == "delete" {
+        println!("yes deleted");
+        match db.delete(key.as_bytes()) {
+            Ok(_) => HttpResponse::Ok().finish(),
+            Err(_) => HttpResponse::InternalServerError().finish(),
+        }
+    } else {
+        HttpResponse::MethodNotAllowed().finish()
     }
 }
 
 #[actix_web::main]
 pub async fn master() {
     // Required vars
-    let volume_servers = env::var("VOLUMES").unwrap();
     let db_path = env::var("DB").unwrap();
 
     let server_address = env::var("SERVER_ADDRESS").unwrap_or(String::from("127.0.0.1"));

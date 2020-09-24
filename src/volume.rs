@@ -61,10 +61,11 @@ impl FileCache {
         PathBuf::from(self.k2p(&key, true)).exists()
     }
 
-    pub fn delete(&self, key: String) -> bool {
+    pub fn delete(&self, key: &String) -> bool {
         let path_buf = PathBuf::from(self.k2p(&key, true));
         if path_buf.exists() {
             fs::remove_file(path_buf).unwrap();
+            return true;
         }
         return false;
     }
@@ -90,15 +91,15 @@ impl FileCache {
     }
 }
 
-pub fn report_to_master(key: &String) {
-    println!("want to report to master");
+pub fn report_to_master(key: &String, op: &str) {
     let mut easy = Easy::new();
     let mut data = "".as_bytes();
     easy.url(&format!(
-        "{}/{}/{}",
+        "{}/{}/{}/{}",
         "http://127.0.0.1:3000",
         get_host(),
-        key
+        key,
+        op
     ))
     .unwrap();
     easy.post(true).unwrap();
@@ -119,7 +120,8 @@ async fn get_key(web::Path(key): web::Path<String>, fc: web::Data<FileCache>) ->
 
 #[delete("/{key}")]
 async fn delete_key(web::Path(key): web::Path<String>, fc: web::Data<FileCache>) -> impl Responder {
-    fc.delete(key);
+    fc.delete(&key);
+    report_to_master(&key, "delete");
     HttpResponse::Ok().finish()
 }
 
@@ -130,7 +132,7 @@ async fn put_key(
     fc: web::Data<FileCache>,
 ) -> impl Responder {
     fc.put(&key, bytes.to_vec());
-    report_to_master(&key);
+    report_to_master(&key, "create");
     HttpResponse::Created()
 }
 

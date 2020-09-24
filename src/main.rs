@@ -18,14 +18,16 @@ use volume::volume;
 use std::env;
 
 fn main() {
-    let server_type = match env::var("TYPE") {
-        Ok(s) => s,
-        _ => String::from("Invalid server type"),
-    };
-
-    if server_type == "master" {
-        master();
-    } else if server_type == "volume" {
-        volume();
+    match env::var("TYPE") {
+        Ok(server_type) => {
+            if server_type == "master" {
+                master();
+            } else if server_type == "volume" {
+                volume();
+            } else {
+                println!("Invalid server type, it should either be master or volume");
+            }
+        }
+        _ => println!("Unable to read type of server from env var"),
     }
 }
