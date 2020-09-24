@@ -40,7 +40,6 @@ impl FileCache {
     fn k2p(&self, key: &String, mkdir_ok: bool) -> String {
         //key = hashlib.md5(key.encode('utf-8')).hexdigest()
         let digest = md5::compute(key);
-        println!("digest: {:?}", digest);
 
         // 2 byte layers deep, meaning a fanout of 256
         // optimized for 2^24 = 16M files per volume server
@@ -92,29 +91,36 @@ impl FileCache {
 }
 
 pub fn report_to_master(key: &String) {
+    println!("want to report to master");
     let mut easy = Easy::new();
-    let mut data = "this is the body".as_bytes();
+    let mut data = "".as_bytes();
     easy.url(&format!(
         "{}/{}/{}",
-        "http://127.0.0.1:3000", "127.0.0.1:3001", key
+        "http://127.0.0.1:3000",
+        get_host(),
+        key
     ))
     .unwrap();
-    println!("still going");
     easy.post(true).unwrap();
-    println!("still going 2");
     let mut transfer = easy.transfer();
     transfer
         .read_function(|buf| Ok(data.read(buf).unwrap_or(0)))
         .unwrap();
     match transfer.perform() {
-        Ok(res) => println!("success! {:?}", res),
-        Err(e) => println!("ERror: {:?}", e),
+        Ok(res) => println!("Success: {:?}", res),
+        Err(e) => println!("Error: {:?}", e),
     }
 }
 
 #[get("/{key}")]
 async fn get_key(web::Path(key): web::Path<String>, fc: web::Data<FileCache>) -> impl Responder {
     HttpResponse::Ok().body(fc.get(key))
+}
+
+#[delete("/{key}")]
+async fn delete_key(web::Path(key): web::Path<String>, fc: web::Data<FileCache>) -> impl Responder {
+    fc.delete(key);
+    HttpResponse::Ok().finish()
 }
 
 #[put("/{key}")]
@@ -128,31 +134,27 @@ async fn put_key(
     HttpResponse::Created()
 }
 
-#[get("/")]
-async fn index(fc: web::Data<FileCache>) -> impl Responder {
-    format!("Hello, world from volume server! {:?}", fc.basedir)
+pub fn get_host() -> String {
+    let server_address = env::var("SERVER_ADDRESS").unwrap_or(String::from("127.0.0.1"));
+    let server_port = env::var("SERVER_PORT").unwrap_or(String::from("3000"));
+    let server_port = server_port.parse::<u16>().unwrap();
+    format!("{}:{}", server_address, server_port)
 }
 
 #[actix_web::main]
 pub async fn volume() {
-    println!("voluem here?");
     let volume = env::var("VOLUME").unwrap();
     let fc = FileCache::new(volume);
-    println!("Filecache is in: {}", fc.basedir);
     let fc = web::Data::new(fc);
-
-    let server_address = env::var("SERVER_ADDRESS").unwrap_or(String::from("127.0.0.1"));
-    let server_port = env::var("SERVER_PORT").unwrap_or(String::from("3000"));
-    let server_port = server_port.parse::<u16>().unwrap();
 
     HttpServer::new(move || {
         App::new()
             .app_data(fc.clone())
-            .service(index)
             .service(get_key)
             .service(put_key)
+            .service(delete_key)
     })
-    .bind(format!("{}:{}", server_address, server_port))
+    .bind(get_host())
     .unwrap()
     .run()
     .await

@@ -4,10 +4,10 @@ extern crate actix_web;
 extern crate base64;
 extern crate curl;
 extern crate md5;
+extern crate rand;
 extern crate rocksdb;
 extern crate serde;
 extern crate serde_json;
-extern crate tempdir;
 
 mod master;
 mod volume;
@@ -20,9 +20,8 @@ use std::env;
 fn main() {
     let server_type = match env::var("TYPE") {
         Ok(s) => s,
-        _ => String::from("invalid"),
+        _ => String::from("Invalid server type"),
     };
-    println!("type: {}", server_type);
 
     if server_type == "master" {
         master();
