@@ -125,20 +125,20 @@ class TestMiniKeyValue(unittest.TestCase):
         # # redirect, content length should be size of data
         # self.assertEqual(int(r.headers['content-length']), len(data))
 
-    # def test_large_key(self):
-        # key = self.get_fresh_key()
+    def test_large_key(self):
+        key = self.get_fresh_key()
 
-        # data = b"a"*(16*1024*1024)
+        data = b"a"*(16*1024*20)
 
-        # r = requests.put(key, data=data)
-        # self.assertEqual(r.status_code, 201)
+        r = requests.put(key, data=data)
+        self.assertEqual(r.status_code, 201)
 
-        # r = requests.get(key)
-        # self.assertEqual(r.status_code, 200)
-        # self.assertEqual(r.content, data)
+        r = requests.get(key)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.content, data)
 
-        # r = requests.delete(key)
-        # self.assertEqual(r.status_code, 204)
+        r = requests.delete(key)
+        self.assertEqual(r.status_code, 204)
 
     # def test_json_list(self):
         # key = self.get_fresh_key()

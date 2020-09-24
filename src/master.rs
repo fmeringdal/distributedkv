@@ -62,30 +62,29 @@ async fn post_key(
     db: web::Data<DB>,
 ) -> impl Responder {
     let stored = db.get(key.as_bytes());
-    if Ok(None) != stored && op == "create" {
-        return HttpResponse::Conflict().finish();
-    }
-
-    if op == "delete" && (!stored.is_ok() || !stored.unwrap().is_some()) {
-        return HttpResponse::NotFound().finish();
-    }
-
-    if op == "create" {
-        let meta = Meta {
-            volume: format!("http://{}", volume),
-        };
-        match db.put(key.as_bytes(), serde_json::to_string(&meta).unwrap()) {
-            Ok(_) => HttpResponse::Created().finish(),
-            Err(_) => HttpResponse::InternalServerError().finish(),
+    match &op[..] {
+        "create" => {
+            if Ok(None) != stored {
+                return HttpResponse::Conflict().finish();
+            }
+            let meta = Meta {
+                volume: format!("http://{}", volume),
+            };
+            match db.put(key.as_bytes(), serde_json::to_string(&meta).unwrap()) {
+                Ok(_) => HttpResponse::Created().finish(),
+                Err(_) => HttpResponse::InternalServerError().finish(),
+            }
         }
-    } else if op == "delete" {
-        println!("yes deleted");
-        match db.delete(key.as_bytes()) {
-            Ok(_) => HttpResponse::Ok().finish(),
-            Err(_) => HttpResponse::InternalServerError().finish(),
+        "delete" => {
+            if !stored.is_ok() || !stored.unwrap().is_some() {
+                return HttpResponse::NotFound().finish();
+            }
+            match db.delete(key.as_bytes()) {
+                Ok(_) => HttpResponse::Ok().finish(),
+                Err(_) => HttpResponse::InternalServerError().finish(),
+            }
         }
-    } else {
-        HttpResponse::MethodNotAllowed().finish()
+        _ => HttpResponse::MethodNotAllowed().finish(),
     }
 }
 
