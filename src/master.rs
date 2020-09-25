@@ -1,6 +1,6 @@
 use actix_web::{delete, get, post, put, web, App, HttpResponse, HttpServer, Responder};
 use rand::Rng;
-use rocksdb::{Options, DB};
+use rocksdb::{Direction, IteratorMode, Options, DB};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Result, Value};
 use std::env;
@@ -12,6 +12,23 @@ struct Meta {
 
 #[get("/{key}")]
 async fn get_key(web::Path(key): web::Path<String>, db: web::Data<DB>) -> impl Responder {
+    println!("---------------------------------------------------");
+    for (key, value) in db.iterator(IteratorMode::Start) {
+        println!(
+            "Saw {:?} {:?}",
+            String::from_utf8(key.into_vec()).unwrap(),
+            String::from_utf8(value.into_vec()).unwrap()
+        );
+    }
+
+    for (key, value) in db.iterator(IteratorMode::From(key.as_bytes(), Direction::Forward)) {
+        println!(
+            "Sawhere {:?} {:?}",
+            String::from_utf8(key.into_vec()).unwrap(),
+            String::from_utf8(value.into_vec()).unwrap()
+        );
+    }
+
     match db.get(key.as_bytes()) {
         Ok(Some(value)) => {
             let meta: Meta = serde_json::from_slice(&value).unwrap();
@@ -21,6 +38,27 @@ async fn get_key(web::Path(key): web::Path<String>, db: web::Data<DB>) -> impl R
         }
         _ => HttpResponse::NotFound().finish(),
     }
+}
+
+#[derive(Serialize, Deserialize)]
+struct ListItem {
+    key: String,
+    volume: String,
+}
+
+#[get("/{key}/list")]
+async fn list_key(web::Path(key): web::Path<String>, db: web::Data<DB>) -> impl Responder {
+    let list: Vec<ListItem> = db
+        .iterator(IteratorMode::From(key.as_bytes(), Direction::Forward))
+        .map(|(key, value)| ListItem {
+            key: String::from_utf8(key.into_vec()).unwrap(),
+            volume: serde_json::from_slice::<Meta>(&value.into_vec())
+                .unwrap()
+                .volume,
+        })
+        .collect();
+
+    HttpResponse::Ok().json(list)
 }
 
 #[delete("/{key}")]
@@ -61,6 +99,11 @@ async fn post_key(
     web::Path((volume, key, op)): web::Path<(String, String, String)>,
     db: web::Data<DB>,
 ) -> impl Responder {
+    //let mut iter = db.iterator(IteratorMode::Start);
+    //for (key, val) in iter {
+    //println!("Key: {:?}, Val: {:?}", key, val);
+    //}
+
     let stored = db.get(key.as_bytes());
     match &op[..] {
         "create" => {
@@ -107,6 +150,7 @@ pub async fn master() {
             .service(put_key)
             .service(post_key)
             .service(delete_key)
+            .service(list_key)
     })
     .bind(format!("{}:{}", server_address, server_port))
     .unwrap()

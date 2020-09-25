@@ -80,6 +80,7 @@ impl FileCache {
 
     pub fn put(&self, key: &String, stream: Vec<u8>) -> bool {
         let path_buf = PathBuf::from(self.k2p(&key, true));
+        println!("Path: {:?}", path_buf);
         let mut file = OpenOptions::new()
             .read(true)
             .write(true)

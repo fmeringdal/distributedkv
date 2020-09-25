@@ -1,5 +1,5 @@
 # Distributed key value store
-This is a distributes key value store optimized for large values (like files).
+This is a distributed key value store optimized for large values (like files).
 
 
 
