@@ -1,3 +1,4 @@
+use actix_cors::Cors;
 use actix_web::{delete, get, post, put, web, App, HttpResponse, HttpServer, Responder};
 use rand::Rng;
 use rocksdb::{Direction, IteratorMode, Options, DB};
@@ -145,6 +146,7 @@ pub async fn master() {
 
     HttpServer::new(move || {
         App::new()
+            .wrap(Cors::new().supports_credentials().finish())
             .app_data(database.clone())
             .service(get_key)
             .service(put_key)

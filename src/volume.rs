@@ -1,3 +1,4 @@
+use actix_cors::Cors;
 use actix_web::{
     delete, get, post, put, web,
     web::{Bytes, Query},
@@ -152,6 +153,7 @@ pub async fn volume() {
 
     HttpServer::new(move || {
         App::new()
+            .wrap(Cors::new().supports_credentials().finish())
             .app_data(fc.clone())
             .service(get_key)
             .service(put_key)
