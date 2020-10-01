@@ -128,7 +128,7 @@ class TestMiniKeyValue(unittest.TestCase):
     def test_large_key(self):
         key = self.get_fresh_key()
 
-        data = b"a"*(16*1024*20)
+        data = b"a"*(16*1024*400)
 
         r = requests.put(key, data=data)
         self.assertEqual(r.status_code, 201)

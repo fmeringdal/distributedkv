@@ -148,6 +148,7 @@ pub async fn master() {
         App::new()
             .wrap(Cors::new().supports_credentials().finish())
             .app_data(database.clone())
+            .data(web::PayloadConfig::new(1 << 60))
             .service(get_key)
             .service(put_key)
             .service(post_key)
