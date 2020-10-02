@@ -14,6 +14,7 @@ extern crate serde_json;
 extern crate tempdir;
 
 mod master;
+mod shared;
 mod volume;
 
 use master::master;
