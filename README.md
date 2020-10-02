@@ -61,3 +61,7 @@ starting thrasher
 thats 5180.52/sec
 ```
 
+### Tests
+```
+tools/test.py
+```
