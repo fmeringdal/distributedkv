@@ -1,9 +1,8 @@
 use actix_cors::Cors;
 use actix_web::{delete, get, post, put, web, App, HttpResponse, HttpServer, Responder};
 use rand::Rng;
-use rocksdb::{Direction, IteratorMode, Options, DB};
+use rocksdb::{Direction, IteratorMode, DB};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Result, Value};
 use std::env;
 
 #[derive(Serialize, Deserialize)]
@@ -85,10 +84,8 @@ async fn post_key(
 ) -> impl Responder {
     let stored = db.get(key.as_bytes());
     match &op[..] {
+        "create" if Ok(None) != stored => HttpResponse::Conflict().finish(),
         "create" => {
-            if Ok(None) != stored {
-                return HttpResponse::Conflict().finish();
-            }
             let meta = Meta {
                 volume: format!("http://{}", volume),
             };

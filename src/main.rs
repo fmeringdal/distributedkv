@@ -10,6 +10,9 @@ extern crate rocksdb;
 extern crate serde;
 extern crate serde_json;
 
+#[cfg(test)]
+extern crate tempdir;
+
 mod master;
 mod volume;
 

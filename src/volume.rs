@@ -38,7 +38,7 @@ impl FileCache {
         }
     }
 
-    fn k2p(&self, key: &String, mkdir_ok: bool) -> String {
+    fn k2p(&self, key: &String) -> String {
         //key = hashlib.md5(key.encode('utf-8')).hexdigest()
         let digest = md5::compute(key);
 
@@ -59,11 +59,11 @@ impl FileCache {
     }
 
     pub fn exists(&self, key: String) -> bool {
-        PathBuf::from(self.k2p(&key, true)).exists()
+        PathBuf::from(self.k2p(&key)).exists()
     }
 
     pub fn delete(&self, key: &String) -> bool {
-        let path_buf = PathBuf::from(self.k2p(&key, true));
+        let path_buf = PathBuf::from(self.k2p(&key));
         if path_buf.exists() {
             fs::remove_file(path_buf).unwrap();
             return true;
@@ -72,7 +72,7 @@ impl FileCache {
     }
 
     pub fn get(&self, key: String) -> Vec<u8> {
-        let path_buf = PathBuf::from(self.k2p(&key, true));
+        let path_buf = PathBuf::from(self.k2p(&key));
         if path_buf.exists() {
             return fs::read(path_buf).unwrap();
         }
@@ -80,7 +80,7 @@ impl FileCache {
     }
 
     pub fn put(&self, key: &String, stream: Vec<u8>) -> bool {
-        let path_buf = PathBuf::from(self.k2p(&key, true));
+        let path_buf = PathBuf::from(self.k2p(&key));
         let mut file = OpenOptions::new()
             .read(true)
             .write(true)
@@ -164,4 +164,31 @@ pub async fn volume() {
     .run()
     .await
     .unwrap();
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use tempdir::*;
+
+    #[test]
+    fn filecache_operations() {
+        let dir = TempDir::new("/tmp/rand").unwrap();
+        let tempdir = String::from(dir.path().to_str().unwrap());
+        let fc = FileCache::new(tempdir);
+        let non_existing_key = String::from("does_not_exists");
+        assert_eq!(fc.get(non_existing_key.clone()), Vec::<u8>::default());
+        assert_eq!(fc.exists(non_existing_key.clone()), false);
+
+        let key = String::from("cool");
+        let val = vec![3_u8];
+        fc.put(&key, val.clone());
+        assert_eq!(fc.get(key.clone()), val);
+        assert!(fc.exists(key.clone()));
+
+        fc.delete(&key);
+        assert_eq!(fc.get(key.clone()), Vec::<u8>::default());
+        assert_ne!(fc.get(key.clone()), val);
+        assert_eq!(fc.exists(key.clone()), false);
+    }
 }
