@@ -81,7 +81,6 @@ impl FileCache {
 
     pub fn put(&self, key: &String, stream: Vec<u8>) -> bool {
         let path_buf = PathBuf::from(self.k2p(&key, true));
-        println!("Path: {:?}", path_buf);
         let mut file = OpenOptions::new()
             .read(true)
             .write(true)
@@ -110,9 +109,9 @@ pub fn report_to_master(key: &String, op: &str) {
         .read_function(|buf| Ok(data.read(buf).unwrap_or(0)))
         .unwrap();
     match transfer.perform() {
-        Ok(res) => println!("Success: {:?}", res),
-        Err(e) => println!("Error: {:?}", e),
-    }
+        Ok(res) => format!("Success: {:?}", res),
+        Err(e) => format!("Error: {:?}", e),
+    };
 }
 
 #[get("/{key}")]
