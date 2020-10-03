@@ -1,6 +1,6 @@
 #!/bin/bash
 trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
-cargo build --release
+cargo build 
 
 SERVER_PORT=3001 ./volume /tmp/volume1/ &
 SERVER_PORT=3002 ./volume /tmp/volume2/ &

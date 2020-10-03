@@ -4,5 +4,5 @@ export DB=${2:-/tmp/cachedb/}
 export TYPE=master
 
 #cargo run
-target/release/blobstorage
+target/debug/blobstorage
 #uwsgi --disable-logging --http :${PORT:-3000} --wsgi-file server.py --callable master --master --processes 4
