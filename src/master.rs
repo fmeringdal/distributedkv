@@ -1,18 +1,16 @@
 use crate::shared::{key2path, key2volumes};
 use actix_cors::Cors;
-use actix_web::{delete, get, post, put, web, App, HttpResponse, HttpServer, Responder};
-use curl::easy::Easy;
-use rand::Rng;
+use actix_web::{delete, get, put, web, App, HttpResponse, HttpServer, Responder};
+use rand::seq::SliceRandom;
 use reqwest;
-use rocksdb::{Direction, IteratorMode, DB};
+use rocksdb::DB;
 use serde::{Deserialize, Serialize};
 use std::env;
-use std::io::prelude::*;
-use std::io::Read;
 
 #[derive(Serialize, Deserialize)]
 struct Meta {
     kvolumes: Vec<String>,
+    kpath: String,
 }
 
 #[get("/{key}")]
@@ -21,7 +19,11 @@ async fn get_key(web::Path(key): web::Path<String>, db: web::Data<DB>) -> impl R
     match db.get(bkey) {
         Ok(Some(value)) => {
             let meta: Meta = serde_json::from_slice(&value).unwrap();
-            let remote = format!("http://{}{}", meta.kvolumes[0], key2path(&bkey.to_vec()));
+            let remote = format!(
+                "http://{}{}",
+                meta.kvolumes.choose(&mut rand::thread_rng()).unwrap(),
+                meta.kpath
+            );
             HttpResponse::TemporaryRedirect()
                 .header("Location", remote)
                 .finish()
@@ -37,15 +39,18 @@ struct ListItem {
 }
 
 #[delete("/{key}")]
-async fn delete_key(web::Path(key): web::Path<String>, db: web::Data<DB>) -> impl Responder {
+async fn delete_key(
+    web::Path(key): web::Path<String>,
+    db: web::Data<DB>,
+    client: web::Data<reqwest::Client>,
+) -> impl Responder {
     let bkey = key.as_bytes();
     match db.get(bkey) {
         Ok(Some(value)) => {
             let meta: Meta = serde_json::from_slice(&value).unwrap();
-            let kpath = key2path(&bkey.to_vec());
             for v in meta.kvolumes.iter() {
-                let remote = format!("http://{}{}", v, kpath);
-                let _ = remote_delete(&v).await;
+                let remote = format!("http://{}{}", v, meta.kpath);
+                let _ = remote_delete(&remote, &client).await;
             }
             match db.delete(key.as_bytes()) {
                 Ok(_) => HttpResponse::NoContent().finish(),
@@ -61,74 +66,45 @@ async fn put_key(
     web::Path(key): web::Path<String>,
     bytes: web::Bytes,
     db: web::Data<DB>,
+    client: web::Data<reqwest::Client>,
+    config: web::Data<AppConfig>,
 ) -> impl Responder {
     let key = key.as_bytes();
     match db.get(key) {
         Ok(None) => {
-            if let Ok(volumes) = env::var("VOLUMES") {
-                let volumes: Vec<String> = volumes.split(",").map(|v| String::from(v)).collect();
-                let kvolumes = key2volumes(&key.to_vec(), &volumes, 3, 1);
-                for v in kvolumes.iter() {
-                    let remote = format!("http://{}{}", v, key2path(&key.to_vec()));
-                    println!("Writing to: {}", remote);
-                    match remote_put(&remote, bytes.to_vec()).await {
-                        Err(e) => {
-                            println!("repliaca failed to write: {:?}", e);
-                            return HttpResponse::InternalServerError().finish();
-                        }
-                        _ => (),
-                    };
-                }
-                let meta = Meta { kvolumes };
-                return match db.put(key, serde_json::to_string(&meta).unwrap()) {
-                    Ok(_) => HttpResponse::Created().finish(),
-                    Err(_) => HttpResponse::InternalServerError().finish(),
+            let kvolumes = key2volumes(
+                &key.to_vec(),
+                &config.volumes,
+                config.replicas,
+                config.subvolumes,
+            );
+            let kpath = key2path(&key.to_vec());
+            for v in kvolumes.iter() {
+                let remote = format!("http://{}{}", v, kpath);
+                if let Err(_) = remote_put(&remote, bytes.to_vec(), &client).await {
+                    return HttpResponse::InternalServerError().finish();
                 };
             }
-            HttpResponse::InternalServerError().finish()
+            let meta = Meta { kvolumes, kpath };
+            return match db.put(key, serde_json::to_string(&meta).unwrap()) {
+                Ok(_) => HttpResponse::Created().finish(),
+                Err(_) => HttpResponse::InternalServerError().finish(),
+            };
         }
         _ => HttpResponse::Conflict().finish(),
     }
 }
 
-//#[post("/{volume}/{key}/{op}")]
-//async fn post_key(
-//web::Path((volume, key, op)): web::Path<(String, String, String)>,
-//db: web::Data<DB>,
-//) -> impl Responder {
-//let stored = db.get(key.as_bytes());
-//match &op[..] {
-//"create" if Ok(None) != stored => HttpResponse::Conflict().finish(),
-//"create" => {
-//let meta = Meta {
-//volume: format!("http://{}", volume),
-//};
-//match db.put(key.as_bytes(), serde_json::to_string(&meta).unwrap()) {
-//Ok(_) => HttpResponse::Created().finish(),
-//Err(_) => HttpResponse::InternalServerError().finish(),
-//}
-//}
-//"delete" => {
-//if !stored.is_ok() || !stored.unwrap().is_some() {
-//return HttpResponse::NotFound().finish();
-//}
-//match db.delete(key.as_bytes()) {
-//Ok(_) => HttpResponse::Ok().finish(),
-//Err(_) => HttpResponse::InternalServerError().finish(),
-//}
-//}
-//_ => HttpResponse::MethodNotAllowed().finish(),
-//}
-//}
-
-async fn remote_put(remote: &String, body: Vec<u8>) -> Result<(), reqwest::Error> {
-    let client = reqwest::Client::new();
-    let res = client.put(remote).body(body).send().await?;
+async fn remote_put(
+    remote: &String,
+    body: Vec<u8>,
+    client: &reqwest::Client,
+) -> Result<(), reqwest::Error> {
+    client.put(remote).body(body).send().await?;
     Ok(())
 }
 
-async fn remote_delete(remote: &String) -> Result<(), reqwest::Error> {
-    let client = reqwest::Client::new();
+async fn remote_delete(remote: &String, client: &reqwest::Client) -> Result<(), reqwest::Error> {
     client.delete(remote).send().await?;
     Ok(())
 }
@@ -145,6 +121,40 @@ async fn remote_head(remote: &String) -> Result<(), reqwest::Error> {
     Ok(())
 }
 
+struct AppConfig {
+    volumes: Vec<String>,
+    replicas: usize,
+    subvolumes: usize,
+}
+
+impl AppConfig {
+    pub fn new() -> Self {
+        let volumes =
+            env::var("VOLUMES").expect("Volume servers was not provided to the master server");
+        let volumes: Vec<String> = volumes.split(",").map(|v| String::from(v)).collect();
+        let default_replicas = 3;
+        let replicas = env::var("REPLICAS")
+            .unwrap_or(default_replicas.to_string())
+            .parse::<usize>()
+            .unwrap_or(default_replicas);
+        let default_subvolumes = 2;
+        let subvolumes = env::var("SUBVOLUMES")
+            .unwrap_or(default_subvolumes.to_string())
+            .parse::<usize>()
+            .unwrap_or(default_subvolumes);
+
+        if volumes.len() < replicas {
+            panic!("There cannot be more replicas then there are volume servers");
+        }
+
+        Self {
+            volumes,
+            replicas,
+            subvolumes,
+        }
+    }
+}
+
 #[actix_web::main]
 pub async fn master() {
     // Required vars
@@ -157,11 +167,19 @@ pub async fn master() {
     let database = DB::open_default(db_path).unwrap();
     let database = web::Data::new(database);
 
+    let client = reqwest::Client::new();
+    let client = web::Data::new(client);
+
+    let config = AppConfig::new();
+    let config = web::Data::new(config);
+
     HttpServer::new(move || {
         App::new()
             .wrap(Cors::new().supports_credentials().finish())
             .app_data(database.clone())
-            .data(web::PayloadConfig::new(1 << 60))
+            .app_data(client.clone())
+            .app_data(config.clone())
+            .data(web::PayloadConfig::new(1 << 24))
             .service(get_key)
             .service(put_key)
             .service(delete_key)
