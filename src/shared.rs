@@ -5,6 +5,12 @@ struct Sortvol {
     volume: String,
 }
 
+pub fn key2path(key: &Vec<u8>) -> String {
+    let mkey = md5::compute(key);
+    let b64key = base64::encode(mkey.to_vec()).to_string();
+    format!("/{}/{}/{}", mkey[0], mkey[1], b64key)
+}
+
 pub fn key2volumes(
     key: &Vec<u8>,
     volumes: &Vec<String>,

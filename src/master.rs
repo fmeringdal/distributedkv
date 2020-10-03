@@ -1,4 +1,4 @@
-use crate::shared::key2volumes;
+use crate::shared::{key2path, key2volumes};
 use actix_cors::Cors;
 use actix_web::{delete, get, post, put, web, App, HttpResponse, HttpServer, Responder};
 use curl::easy::Easy;
@@ -17,11 +17,13 @@ struct Meta {
 
 #[get("/{key}")]
 async fn get_key(web::Path(key): web::Path<String>, db: web::Data<DB>) -> impl Responder {
-    match db.get(key.as_bytes()) {
+    let bkey = key.as_bytes();
+    match db.get(bkey) {
         Ok(Some(value)) => {
             let meta: Meta = serde_json::from_slice(&value).unwrap();
+            let remote = format!("http://{}{}", meta.kvolumes[0], key2path(&bkey.to_vec()));
             HttpResponse::TemporaryRedirect()
-                .header("Location", format!("http://{}/{}", meta.kvolumes[0], key))
+                .header("Location", remote)
                 .finish()
         }
         _ => HttpResponse::NotFound().finish(),
@@ -36,10 +38,13 @@ struct ListItem {
 
 #[delete("/{key}")]
 async fn delete_key(web::Path(key): web::Path<String>, db: web::Data<DB>) -> impl Responder {
-    match db.get(key.as_bytes()) {
+    let bkey = key.as_bytes();
+    match db.get(bkey) {
         Ok(Some(value)) => {
             let meta: Meta = serde_json::from_slice(&value).unwrap();
+            let kpath = key2path(&bkey.to_vec());
             for v in meta.kvolumes.iter() {
+                let remote = format!("http://{}{}", v, kpath);
                 let _ = remote_delete(&v).await;
             }
             match db.delete(key.as_bytes()) {
@@ -64,7 +69,9 @@ async fn put_key(
                 let volumes: Vec<String> = volumes.split(",").map(|v| String::from(v)).collect();
                 let kvolumes = key2volumes(&key.to_vec(), &volumes, 3, 1);
                 for v in kvolumes.iter() {
-                    match remote_put(&v, bytes.to_vec()).await {
+                    let remote = format!("http://{}{}", v, key2path(&key.to_vec()));
+                    println!("Writing to: {}", remote);
+                    match remote_put(&remote, bytes.to_vec()).await {
                         Err(e) => {
                             println!("repliaca failed to write: {:?}", e);
                             return HttpResponse::InternalServerError().finish();
@@ -116,20 +123,13 @@ async fn put_key(
 
 async fn remote_put(remote: &String, body: Vec<u8>) -> Result<(), reqwest::Error> {
     let client = reqwest::Client::new();
-    let mut remote_scheme = String::from("http://");
-    remote_scheme.push_str(remote);
-    let remote = remote_scheme;
-    let res = client.put(&remote).body(body).send().await?;
-    println!("res: {:?}", res.text().await);
+    let res = client.put(remote).body(body).send().await?;
     Ok(())
 }
 
 async fn remote_delete(remote: &String) -> Result<(), reqwest::Error> {
     let client = reqwest::Client::new();
-    let mut remote_scheme = String::from("http://");
-    remote_scheme.push_str(remote);
-    let remote = remote_scheme;
-    client.delete(&remote).send().await?;
+    client.delete(remote).send().await?;
     Ok(())
 }
 
