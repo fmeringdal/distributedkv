@@ -1,5 +1,5 @@
 # Distributed key value store
-[![Actions Status](https://github.com/fmeringdal/distributedkv/workflows/Rust/badge.svg)](https://github.com/fmeringdal/distributedkv/actions)
+[![Actions Status](https://github.com/fmeringdal/distributedkv/workflows/Build/badge.svg)](https://github.com/fmeringdal/distributedkv/actions)
 
 This is a distributed key value store optimized for large values (like files).
 
