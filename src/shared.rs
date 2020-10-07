@@ -7,7 +7,7 @@ struct Sortvol {
 
 pub fn key2path(key: &Vec<u8>) -> String {
     let mkey = md5::compute(key);
-    let b64key = base64::encode(mkey.to_vec()).to_string();
+    let b64key = base64::encode(mkey.0);
     format!("/{}/{}/{}", mkey[0], mkey[1], b64key)
 }
 
